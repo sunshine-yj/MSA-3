@@ -83,12 +83,12 @@ public class ProductCompositeServiceApplication {
 
   @Bean
   public WebClient webClient(WebClient.Builder builder) {
-    return builder.filter(lbFunction).build();
+    return builder.build();
   }
-
   public static void main(String[] args) {
     Hooks.enableAutomaticContextPropagation();
     SpringApplication.run(ProductCompositeServiceApplication.class, args);
   }
+
 
 }

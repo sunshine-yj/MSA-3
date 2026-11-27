@@ -10,6 +10,6 @@ COPY --from=builder /builder/extracted/spring-boot-loader/ ./
 COPY --from=builder /builder/extracted/snapshot-dependencies/ ./
 COPY --from=builder /builder/extracted/application/ ./
 
-EXPOSE 9999
+EXPOSE 80
 
 ENTRYPOINT ["java", "org.springframework.boot.loader.launch.JarLauncher"]

@@ -1,21 +1,34 @@
+server.forward-headers-strategy: framework
 springdoc:
   swagger-ui.path: /openapi/swagger-ui.html
   api-docs.path: /openapi/v3/api-docs
   packagesToScan: se.magnus.microservices.composite.product
   pathsToMatch: /**
-  cache.disabled: true
-
-  swagger-ui:
-    oauth2-redirect-url: /swagger-ui/oauth2-redirect.html
+  swagger-ui:                                   # ← 11장: Swagger UI 로그인
     oauth:
       clientId: writer
-      clientSecret: '{cipher}debb77857798ba70441b229de88624213b0a00b284f95fe31d1378d117cf3ffa'
+      clientSecret: secret-writer
       useBasicAuthenticationWithAccessCodeGrant: true
-  oAuthFlow:
+  oAuthFlow:                                    # ← 11장: OpenApiSecurityConfig가 읽는 값
     authorizationUrl: https://localhost:8443/oauth2/authorize
     tokenUrl: https://localhost:8443/oauth2/token
 
-server.forward-headers-strategy: framework
+spring.cloud.stream:
+  defaultBinder: rabbit
+  default.contentType: application/json
+  bindings:
+    products-out-0:
+      destination: products
+      producer:
+        required-groups: auditGroup
+    recommendations-out-0:
+      destination: recommendations
+      producer:
+        required-groups: auditGroup
+    reviews-out-0:
+      destination: reviews
+      producer:
+        required-groups: auditGroup
 
 api:
 
@@ -47,14 +60,28 @@ api:
       notes: |
         # Normal response
         If the requested product id is found the method will return information regarding:
-        1. Product information
+        1. Base product information
         1. Reviews
         1. Recommendations
         1. Service Addresses\n(technical information regarding the addresses of the microservices that created the response)
 
         # Expected partial and error responses
-        1. If no product information is found, a **404 - Not Found** error will be returned
-        1. In no recommendations or reviews are found for a product, a partial response will be returned
+        In the following cases, only a partial response be created (used to simplify testing of error conditions)
+
+        ## Product id 113
+        200 - Ok, but no recommendations will be returned
+
+        ## Product id 213
+        200 - Ok, but no reviews will be returned
+
+        ## Non numerical product id
+        400 - A **Bad Request** error will be returned
+
+        ## Product id 13
+        404 - A **Not Found** error will be returned
+
+        ## Negative product ids
+        422 - An **Unprocessable Entity** error will be returned
 
     create-composite-product:
       description: Creates a composite product
@@ -76,48 +103,26 @@ api:
         This means that a delete request of a non-existing product will return **200 Ok**.
 
 server.port: 7001
-spring.web.error.include-message: always
 
-# Create the output bindings at startup. Otherwise StreamBridge creates them lazily on the first send,
-# and the three events sent in parallel can race (MessageDeliveryException: Dispatcher has no subscribers).
-spring.cloud.stream.output-bindings: products-out-0;recommendations-out-0;reviews-out-0
+spring.application.name: product-composite
 
-spring.cloud.stream:
-  default.contentType: application/json
-  bindings:
-    products-out-0:
-      destination: products
-      producer:
-        required-groups: auditGroup
-    recommendations-out-0:
-      destination: recommendations
-      producer:
-        required-groups: auditGroup
-    reviews-out-0:
-      destination: reviews
-      producer:
-        required-groups: auditGroup
+management.endpoint.health.group.readiness.include: readinessState, rabbit
 
-spring.security.oauth2.resourceserver.jwt.issuer-uri: http://${app.auth-server}:9999
+logging:
+  level:
+    root: INFO
+    se.magnus: INFO
+    org.springframework.web.server.adapter.HttpWebHandlerAdapter: INFO
+
+spring.security.oauth2.resourceserver.jwt.issuer-uri: http://${app.auth-server}
+
 
 resilience4j.timelimiter:
   instances:
     product:
       timeoutDuration: 2s
 
-resilience4j.retry:
-  instances:
-    product:
-      maxAttempts: 3
-      waitDuration: 1000
-      retryExceptions:
-      - org.springframework.web.reactive.function.client.WebClientResponseException$InternalServerError
-
 management.health.circuitbreakers.enabled: true
-
-# Spring Boot 4 / Jackson 3 writes enums using toString() by default. Write them by name, as with
-# Jackson 2, so /actuator/circuitbreakerevents reports state transitions like CLOSED_TO_OPEN.
-spring.jackson.datatype.enum.write-enums-using-to-string: false
 
 resilience4j.circuitbreaker:
   instances:
@@ -134,20 +139,18 @@ resilience4j.circuitbreaker:
         - se.magnus.api.exceptions.InvalidInputException
         - se.magnus.api.exceptions.NotFoundException
 
-logging:
-  level:
-    root: INFO
-    se.magnus: INFO
-    org.springframework.web.server.adapter.HttpWebHandlerAdapter: INFO
-
-# To see tracing headers, uncomment the following two lines and restart the product-composite service
-# spring.codec.log-request-details: true
-# logging.level.org.springframework.web.reactive.function.client.ExchangeFunctions: TRACE
+resilience4j.retry:
+  instances:
+    product:
+      maxAttempts: 3
+      waitDuration: 1000
+      retryExceptions:
+        - org.springframework.web.reactive.function.client.WebClientResponseException$InternalServerError
 
 ---
 spring.config.activate.on-profile: docker
 
-server.port: 8080
+server.port: 80
 
 ---
 spring.config.activate.on-profile: streaming_partitioned
@@ -163,3 +166,12 @@ spring.cloud.stream.bindings.recommendations-out-0.producer:
 spring.cloud.stream.bindings.reviews-out-0.producer:
   partition-key-expression: headers['partitionKey']
   partition-count: 2
+
+---
+spring.config.activate.on-profile: kafka
+
+management.endpoint.health.group.readiness.include: readinessState
+management.health.rabbit.enabled: false
+spring.cloud.stream.defaultBinder: kafka
+spring.kafka.bootstrap-servers: kafka:9092
+spring.cloud.stream.kafka.binder.replication-factor: 1

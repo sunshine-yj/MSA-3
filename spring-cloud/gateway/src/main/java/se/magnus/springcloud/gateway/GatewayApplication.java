@@ -11,8 +11,7 @@ import reactor.core.publisher.Hooks;
 public class GatewayApplication {
 
   @Bean
-  @LoadBalanced
-  public WebClient.Builder loadBalancedWebClientBuilder() {
+  public WebClient.Builder webClientBuilder() {
     return WebClient.builder();
   }
 
@@ -20,5 +19,6 @@ public class GatewayApplication {
     Hooks.enableAutomaticContextPropagation();
     SpringApplication.run(GatewayApplication.class, args);
   }
+
 
 }

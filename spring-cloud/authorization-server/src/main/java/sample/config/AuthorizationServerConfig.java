@@ -65,12 +65,10 @@ public class AuthorizationServerConfig {
 
   private static final Logger LOG = LoggerFactory.getLogger(AuthorizationServerConfig.class);
 
+
   @Bean
   @Order(Ordered.HIGHEST_PRECEDENCE)
   public SecurityFilterChain authorizationServerSecurityFilterChain(HttpSecurity http) throws Exception {
-
-    // Replaced this call with the implementation of applyDefaultSecurity() to be able to add a custom redirect_uri validator
-    // OAuth2AuthorizationServerConfiguration.applyDefaultSecurity(http);
 
     OAuth2AuthorizationServerConfigurer authorizationServerConfigurer =
       new OAuth2AuthorizationServerConfigurer();
@@ -156,7 +154,7 @@ public class AuthorizationServerConfig {
 
   @Bean
   public AuthorizationServerSettings authorizationServerSettings() {
-    return AuthorizationServerSettings.builder().issuer("http://auth-server:9999").build();
+    return AuthorizationServerSettings.builder().issuer("http://auth-server").build();
   }
 
   private Consumer<List<AuthenticationProvider>> configureAuthenticationValidator() {
@@ -196,4 +194,3 @@ public class AuthorizationServerConfig {
     }
   }
 }
-//CHECKSTYLE:ON
